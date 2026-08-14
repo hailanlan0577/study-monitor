@@ -4,6 +4,63 @@ html { scroll-behavior: smooth; }
 
 .hidden { display: none !important; }
 
+/* ============ 过渡动画 ============ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-up { opacity: 0; animation: fadeUp .7s cubic-bezier(.2,.7,.3,1) forwards; }
+.d1 { animation-delay: .1s; }
+.d2 { animation-delay: .22s; }
+.d3 { animation-delay: .34s; }
+.d4 { animation-delay: .46s; }
+.d5 { animation-delay: .58s; }
+
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.logo-big { animation: float 3s ease-in-out infinite; }
+
+/* 落地页退出 */
+.landing-leave { opacity: 0; transform: translateY(-24px) scale(.98); transition: all .45s cubic-bezier(.4,0,.2,1); }
+
+/* 应用区进入 */
+.app-hidden { display: none; }
+.app-show { display: block; animation: fadeUp .55s cubic-bezier(.2,.7,.3,1) forwards; }
+
+/* 模式切换按钮 */
+.mode-btn { transition: all .25s ease; }
+.mode-btn:active { transform: scale(.95); }
+.mode-btn.active { animation: pop .3s ease; }
+@keyframes pop { 0% { transform: scale(.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+/* 计时器阶段切换脉冲 */
+.timer.pulse { animation: pulseBig .5s ease; }
+@keyframes pulseBig { 0% { transform: scale(1); } 40% { transform: scale(1.14); color: #fbbf24; } 100% { transform: scale(1); } }
+
+/* 阶段标签弹入 */
+.phase-tag.pop { animation: tagPop .4s cubic-bezier(.2,.7,.3,1.4); }
+@keyframes tagPop { 0% { transform: translateX(-50%) scale(.6); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+
+/* 统计柱状图生长 */
+.bar { transform-origin: bottom; animation: growBar .8s cubic-bezier(.2,.7,.3,1) forwards; }
+@keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* 提醒弹窗抖动 */
+.shake-in { animation: shake .5s ease infinite; }
+@keyframes shake {
+  0%,100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-8px) rotate(-1deg); }
+  40% { transform: translateX(8px) rotate(1deg); }
+  60% { transform: translateX(-6px) rotate(-.5deg); }
+  80% { transform: translateX(6px) rotate(.5deg); }
+}
+
+/* 按钮反馈 */
+.btn, .cta { transition: transform .15s ease, box-shadow .2s ease, opacity .2s; }
+.btn:active, .cta:active { transform: scale(.96); }
+
 body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   background: #0f172a;
@@ -33,6 +90,7 @@ body {
 
 .cta {
   display: inline-block;
+  border: none;
   background: linear-gradient(135deg, #2563eb, #8b5cf6);
   color: #fff;
   text-decoration: none;
@@ -41,7 +99,9 @@ body {
   padding: 14px 44px;
   border-radius: 999px;
   box-shadow: 0 6px 20px rgba(99,102,241,.4);
+  cursor: pointer;
 }
+.cta:hover { box-shadow: 0 8px 28px rgba(99,102,241,.55); transform: translateY(-2px); }
 
 .hero-card .hint { margin-top: 14px; font-size: .8rem; color: #64748b; }
 

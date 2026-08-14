@@ -60,7 +60,7 @@
     strict: { minW: 0.18, yaw: 0.10, pitch: 0.065, gazeY: 0.042, gazeX: 0.05, score: 0.55, ear: 0.17, centerY: 0.26 },
   };
   const LONG_BREAK_MIN = 15;
-  const APP_VERSION = "v3.1";
+  const APP_VERSION = "v3.2";
 
   // ---------- 状态 ----------
   let mode = "free";
@@ -157,6 +157,22 @@
     return { yaw, pitch, gazeX, gazeY, ear, box, nose, eyeLC, eyeRC, eyeM, pupilL, pupilR, score: detection.score };
   }
 
+  // ---------- 诊断信息 ----------
+  const dbg = { lastErr: null, detOk: 0, detFail: 0, lastRes: null, testResult: null };
+  function dbgRender() {
+    const el = document.getElementById("debugBar");
+    if (!el) return;
+    const vw = video.videoWidth || 0, vh = video.videoHeight || 0;
+    const lines = [
+      `${APP_VERSION} | 模型:${modelsLoaded ? "✅" : "⏳"} | 摄像头:${stream ? "✅" : "❌"} | 会话:${session && session.running ? "运行中" : "未开始"}`,
+      `视频:${vw}x${vh} | 检测成功:${dbg.detOk} 失败:${dbg.detFail}`,
+      `试检:${dbg.testResult || "未执行"}`,
+      dbg.lastErr ? `错误:${dbg.lastErr}` : "错误:无",
+    ];
+    el.textContent = lines.join("\n");
+  }
+  setInterval(dbgRender, 1000);
+
   // ---------- 检测循环 ----------
   async function detect() {
     if (!session || !session.running) return;
@@ -164,9 +180,31 @@
       const res = await faceapi
         .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
         .withFaceLandmarks();
+      dbg.detOk++;
+      dbg.lastRes = res ? "脸" : "无脸";
+      dbg.lastErr = null;
       drawOverlay(res);
       evaluate(res);
-    } catch (e) {}
+    } catch (e) {
+      dbg.detFail++;
+      dbg.lastErr = (e && e.message) ? e.message : String(e);
+    }
+  }
+
+  // 摄像头就绪后做一次单次试检（无需开始学习）
+  async function singleTest() {
+    for (let i = 0; i < 8; i++) {
+      try {
+        const res = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+          .withFaceLandmarks();
+        dbg.testResult = res ? "✅ 找到人脸，可正常识别" : "⚠️ 没找到脸（对着摄像头坐好）";
+        return;
+      } catch (e) {
+        dbg.testResult = `❌ 检测报错: ${e && e.message ? e.message : e}`;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
   }
 
   function drawOverlay(res) {
@@ -540,6 +578,7 @@
       overlay.height = video.clientHeight;
       faceStatus.textContent = "就绪，点「开始学习」";
       connBadge.textContent = "摄像头 OK";
+      singleTest();
     } catch (e) {
       connBadge.textContent = "摄像头被拒";
       connBadge.className = "badge err";
@@ -565,7 +604,7 @@
 
   renderStats();
   const verTag = document.getElementById("verTag");
-  if (verTag) verTag.textContent = "v3.1 增强识别版";
+  if (verTag) verTag.textContent = "v3.2 诊断版";
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

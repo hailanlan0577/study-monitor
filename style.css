@@ -1,4 +1,8 @@
+html { scroll-behavior: smooth; }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+.hidden { display: none !important; }
 
 body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -10,8 +14,6 @@ body {
 }
 
 /* ============ 主页（landing） ============ */
-.landing-body { max-width: 640px; background: #0b1120; }
-
 .landing { padding: 24px 16px 32px; }
 
 .hero-card {

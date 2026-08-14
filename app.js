@@ -52,14 +52,15 @@
   const enterBtn = $("enterBtn");
   const backBtn = $("backBtn");
 
-  // ---------- 灵敏度阈值（v3 增强版） ----------
-  // yaw: 头部左右偏转 / pitch: 头部俯仰 / gazeY: 视线向下 / score: 人脸检测分(遮挡) / minW: 脸大小 / ear: 闭眼
+  // ---------- 灵敏度阈值（v3.1 修正版） ----------
+  // yaw: 头部偏转 / pitch: 俯仰 / gazeY: 视线向下 / score: 遮挡 / minW: 脸大小 / ear: 闭眼
   const SENS = {
-    loose:  { minW: 0.10, yaw: 0.19, pitch: 0.11, gazeY: 0.065, gazeX: 0.085, score: 0.55, ear: 0.11, centerY: 0.38 },
-    normal: { minW: 0.14, yaw: 0.14, pitch: 0.075, gazeY: 0.05, gazeX: 0.06, score: 0.65, ear: 0.14, centerY: 0.32 },
-    strict: { minW: 0.18, yaw: 0.09, pitch: 0.055, gazeY: 0.038, gazeX: 0.045, score: 0.75, ear: 0.17, centerY: 0.26 },
+    loose:  { minW: 0.10, yaw: 0.20, pitch: 0.13, gazeY: 0.07, gazeX: 0.09, score: 0.35, ear: 0.11, centerY: 0.38 },
+    normal: { minW: 0.14, yaw: 0.15, pitch: 0.09, gazeY: 0.055, gazeX: 0.065, score: 0.45, ear: 0.14, centerY: 0.32 },
+    strict: { minW: 0.18, yaw: 0.10, pitch: 0.065, gazeY: 0.042, gazeX: 0.05, score: 0.55, ear: 0.17, centerY: 0.26 },
   };
   const LONG_BREAK_MIN = 15;
+  const APP_VERSION = "v3.1";
 
   // ---------- 状态 ----------
   let mode = "free";
@@ -224,10 +225,10 @@
 
       // 1. 脸太小 → 太远/凑近玩手机
       if (bw < s.minW) reason = "脸离得太远（低头玩手机？）";
-      // 2. 检测分过低 → 手/手机挡住了脸
+      // 2. 检测分过低 → 手/手机挡住了脸（持续 2 秒才算）
       else if (a.score < s.score) {
         if (!handSince) handSince = now;
-        if (now - handSince > 1000) reason = "有东西挡住脸了——玩手机？📵";
+        if (now - handSince > 2000) reason = "有东西挡住脸了——玩手机？📵";
       } else {
         handSince = 0;
         // 3. 头部俯仰 → 低头
@@ -421,6 +422,7 @@
 
   // ---------- 会话控制 ----------
   function startSession() {
+    if (initFailed) { initFailed = false; init(); return; }
     if (!modelsLoaded) { faceStatus.textContent = "AI 模型加载中，稍等…"; return; }
     if (!stream) { faceStatus.textContent = "摄像头未就绪"; return; }
     session = {
@@ -510,6 +512,7 @@
   }
 
   // ---------- 初始化 ----------
+  let initFailed = false;
   async function init() {
     connBadge.textContent = "加载模型…";
     try {
@@ -520,9 +523,10 @@
       connBadge.className = "badge ok";
       faceStatus.textContent = "请允许摄像头权限";
     } catch (e) {
+      initFailed = true;
       connBadge.textContent = "模型加载失败";
       connBadge.className = "badge err";
-      faceStatus.textContent = "模型加载失败，检查网络后刷新";
+      faceStatus.textContent = "模型加载失败，点开始学习重试";
       return;
     }
     try {
@@ -560,6 +564,8 @@
   cyclesInput.oninput = () => (cyclesVal.textContent = cyclesInput.value);
 
   renderStats();
+  const verTag = document.getElementById("verTag");
+  if (verTag) verTag.textContent = "v3.1 增强识别版";
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

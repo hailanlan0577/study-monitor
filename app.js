@@ -557,42 +557,41 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
 
   // ---------- 初始化（MediaPipe 模型） ----------
   const MODEL_BASE = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/models";
+  // 带超时的加载（防止卡死）
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(label + " 超时")), ms)),
+    ]);
+  }
   async function loadModels() {
-    const urls = [
-      `${MODEL_BASE}/face_landmarker.task`,
-      `${MODEL_BASE}/hand_landmarker.task`,
-    ];
     connBadge.textContent = "加载 AI 模型…";
     connBadge.className = "badge warn";
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    const vision = await withTimeout(
+      FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      ),
+      60000, "wasm"
     );
-    try {
-      faceL = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: urls[0], delegate: "GPU" },
+    // CPU 委托：兼容性最好，手机端速度足够（检测间隔 300ms）
+    connBadge.textContent = "加载人脸模型…";
+    faceL = await withTimeout(
+      FaceLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: `${MODEL_BASE}/face_landmarker.task`, delegate: "CPU" },
         runningMode: "VIDEO",
         numFaces: 1,
-      });
-    } catch (e) {
-      faceL = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: urls[0], delegate: "CPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      });
-    }
-    try {
-      handL = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: urls[1], delegate: "GPU" },
+      }),
+      120000, "人脸模型"
+    );
+    connBadge.textContent = "加载手部模型…";
+    handL = await withTimeout(
+      HandLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: `${MODEL_BASE}/hand_landmarker.task`, delegate: "CPU" },
         runningMode: "VIDEO",
         numHands: 2,
-      });
-    } catch (e) {
-      handL = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: urls[1], delegate: "CPU" },
-        runningMode: "VIDEO",
-        numHands: 2,
-      });
-    }
+      }),
+      120000, "手部模型"
+    );
     modelsLoaded = true;
     connBadge.textContent = "AI 就绪";
     connBadge.className = "badge ok";

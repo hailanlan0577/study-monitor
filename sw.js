@@ -8,10 +8,10 @@ const CORE = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/style.css",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/app.js",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/models/face_landmarker.task",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/models/hand_landmarker.task",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0.1/style.css",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0.1/app.js",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0.1/models/face_landmarker.task",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0.1/models/hand_landmarker.task",
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs",
 ];
 

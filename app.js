@@ -1,11 +1,9 @@
 // ============================================================
-// 专注监督 · Study Monitor (v2.0 - MediaPipe AI 引擎)
-// Google MediaPipe：478 点人脸 + 虹膜视线追踪 + 手部识别
-// 能识别：低头看手机、眼神飘走、闭眼、手拿手机等动作
+// 专注监督 · Study Monitor (v3.0 - 增强版 AI 识别)
+// face-api 68 点人脸 + 头部姿态(偏转/俯仰) + 视线方向 + 遮挡检测
+// 能识别：低头看手机、眼神向下、手挡脸、凑近玩手机、闭眼、转头
 // 所有画面只在本地浏览器处理，不上传任何数据
 // ============================================================
-
-import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
 (() => {
   "use strict";
@@ -54,11 +52,12 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
   const enterBtn = $("enterBtn");
   const backBtn = $("backBtn");
 
-  // ---------- 灵敏度阈值（MediaPipe 版） ----------
+  // ---------- 灵敏度阈值（v3 增强版） ----------
+  // yaw: 头部左右偏转 / pitch: 头部俯仰 / gazeY: 视线向下 / score: 人脸检测分(遮挡) / minW: 脸大小 / ear: 闭眼
   const SENS = {
-    loose:  { minW: 0.10, yaw: 0.22, gazeX: 0.10, gazeY: 0.11, ear: 0.11, hand: 2.0, centerY: 0.38 },
-    normal: { minW: 0.14, yaw: 0.16, gazeX: 0.075, gazeY: 0.085, ear: 0.14, hand: 1.6, centerY: 0.32 },
-    strict: { minW: 0.18, yaw: 0.11, gazeX: 0.055, gazeY: 0.065, ear: 0.17, hand: 1.25, centerY: 0.26 },
+    loose:  { minW: 0.10, yaw: 0.19, pitch: 0.11, gazeY: 0.065, gazeX: 0.085, score: 0.55, ear: 0.11, centerY: 0.38 },
+    normal: { minW: 0.14, yaw: 0.14, pitch: 0.075, gazeY: 0.05, gazeX: 0.06, score: 0.65, ear: 0.14, centerY: 0.32 },
+    strict: { minW: 0.18, yaw: 0.09, pitch: 0.055, gazeY: 0.038, gazeX: 0.045, score: 0.75, ear: 0.17, centerY: 0.26 },
   };
   const LONG_BREAK_MIN = 15;
 
@@ -69,12 +68,10 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
   let distState = null;
   let modelsLoaded = false;
   let stream = null;
-  let faceL = null, handL = null;
   let rafId = null;
   let detectTimer = null;
-  let lastHandAt = 0;
-  let handSince = 0;       // 手持续出现在脸前的起始时间
-  let eyesClosedSince = 0; // 持续闭眼起始时间
+  let eyesClosedSince = 0;
+  let handSince = 0;      // 疑似遮挡持续计时
 
   // ---------- 音频/提醒 ----------
   let audioCtx = null;
@@ -113,133 +110,102 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
   }
 
   // ---------- 几何工具 ----------
-  const P = (lm, i) => ({ x: lm[i].x, y: lm[i].y });
-  function d(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
   function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 
-  // ---------- 人脸分析（478 点） ----------
-  function analyzeFace(lm) {
-    // 关键点（478 点模型）
-    const nose = P(lm, 1);
-    const earL = P(lm, 234), earR = P(lm, 454);
-    const fore = P(lm, 10), chin = P(lm, 152);
-    // 眼睛
-    const eyeLO = P(lm, 33), eyeLI = P(lm, 133);   // 左眼外/内角
-    const eyeRO = P(lm, 362), eyeRI = P(lm, 263);  // 右眼外/内角
-    // 虹膜中心（视线追踪）
-    const irisL = P(lm, 468), irisR = P(lm, 473);
-    // 眼睑（EAR 眨眼检测）
-    const lUp1 = P(lm, 159), lUp2 = P(lm, 158), lLo1 = P(lm, 145), lLo2 = P(lm, 153);
-    const rUp1 = P(lm, 386), rUp2 = P(lm, 385), rLo1 = P(lm, 374), rLo2 = P(lm, 380);
+  // ---------- 人脸分析（face-api 68 点） ----------
+  // 68 点: 0-16 下颌, 17-26 眉, 27-35 鼻, 36-41 左眼, 42-47 右眼, 48-67 嘴
+  function analyzeFace(detection, landmarks) {
+    const pts = landmarks.positions;   // 视频像素坐标
+    const box = detection.box;
 
-    // 人脸包围盒
-    let minX = 1, minY = 1, maxX = 0, maxY = 0;
-    for (const p of lm) {
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
+    const nose = pts[30];                       // 鼻尖
+    const jawL = pts[0], jawR = pts[16];        // 下颌两端（近似两耳）
+    const eyeLC = mid(pts[36], pts[39]);        // 左眼中心(内外眼角中点)
+    const eyeRC = mid(pts[42], pts[45]);        // 右眼中心
+    const eyeM = mid(eyeLC, eyeRC);             // 双眼中心
+    const faceW = dist(jawL, jawR) || 0.001;
+    const faceH = box.height || 0.001;
 
-    const faceW = maxX - minX, faceH = maxY - minY;
-    const faceCx = (minX + maxX) / 2, faceCy = (minY + maxY) / 2;
-    const earMid = mid(earL, earR);
+    // 头部偏转 yaw：鼻尖相对下颌中点的横向偏移（归一化）
+    const jawMid = mid(jawL, jawR);
+    const yaw = (nose.x - jawMid.x) / faceW;
+    // 头部俯仰 pitch：鼻尖相对双眼中心的纵向偏移（>0 = 低头）
+    const pitch = (nose.y - eyeM.y) / faceH;
 
-    // 头部偏转（鼻尖相对两耳中点）
-    const yaw = (nose.x - earMid.x) / (faceW || 0.001);
-    // 头部俯仰（鼻尖相对耳中点纵向）
-    const pitch = (nose.y - earMid.y) / (faceH || 0.001);
-
-    // 视线：虹膜相对眼角的偏移（归一化）
-    const eyeLW = d(eyeLO, eyeLI) || 0.001;
-    const eyeRW = d(eyeRO, eyeRI) || 0.001;
-    const eyeLC = mid(eyeLO, eyeLI), eyeRC = mid(eyeRO, eyeRI);
-    const gazeX = ((irisL.x - eyeLC.x) / eyeLW + (irisR.x - eyeRC.x) / eyeRW) / 2;
-    const gazeY = ((irisL.y - eyeLC.y) / eyeLW + (irisR.y - eyeRC.y) / eyeRW) / 2;
-
-    // 眼睑开合度 EAR
-    const earLv = (d(lUp1, lLo1) + d(lUp2, lLo2)) / (2 * eyeLW);
-    const earRv = (d(rUp1, rLo1) + d(rUp2, rLo2)) / (2 * eyeRW);
-    const ear = (earLv + earRv) / 2;
-
-    return {
-      box: { x: minX, y: minY, w: faceW, h: faceH },
-      cx: faceCx, cy: faceCy, yaw, pitch,
-      gazeX, gazeY, ear,
-      eyes: { eyeLO, eyeLI, eyeRO, eyeRI, irisL, irisR },
+    // 视线方向（瞳孔位置估计）：眼中心相对内外眼角中点的偏移
+    // 左眼: 外眼角36 内眼角39，眼睑点 37/38/41/40 的平均 ≈ 瞳孔
+    const pupilL = {
+      x: (pts[37].x + pts[38].x + pts[41].x + pts[40].x) / 4,
+      y: (pts[37].y + pts[38].y + pts[41].y + pts[40].y) / 4,
     };
+    const pupilR = {
+      x: (pts[43].x + pts[44].x + pts[47].x + pts[46].x) / 4,
+      y: (pts[43].y + pts[44].y + pts[47].y + pts[46].y) / 4,
+    };
+    const eyeLW = dist(pts[36], pts[39]) || 0.001;
+    const eyeRW = dist(pts[42], pts[45]) || 0.001;
+    const gazeX = ((pupilL.x - eyeLC.x) / eyeLW + (pupilR.x - eyeRC.x) / eyeRW) / 2;
+    const gazeY = ((pupilL.y - eyeLC.y) / eyeLW + (pupilR.y - eyeRC.y) / eyeRW) / 2;
+
+    // 眼睑开合 EAR
+    const earL = (dist(pts[37], pts[41]) + dist(pts[38], pts[40])) / (2 * eyeLW);
+    const earR = (dist(pts[43], pts[47]) + dist(pts[44], pts[46])) / (2 * eyeRW);
+    const ear = (earL + earR) / 2;
+
+    return { yaw, pitch, gazeX, gazeY, ear, box, nose, eyeLC, eyeRC, eyeM, pupilL, pupilR, score: detection.score };
   }
 
-  // ---------- 检测循环（MediaPipe） ----------
+  // ---------- 检测循环 ----------
   async function detect() {
-    if (!session || !session.running || !faceL || !handL) return;
-    const t = performance.now();
-    let fRes = null, hRes = null;
+    if (!session || !session.running) return;
     try {
-      fRes = faceL.detectForVideo(video, t);
-      if (t - lastHandAt > 350) { // 手部检测隔帧执行，省 CPU
-        hRes = handL.detectForVideo(video, t);
-        lastHandAt = t;
-      }
+      const res = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+        .withFaceLandmarks();
+      drawOverlay(res);
+      evaluate(res);
     } catch (e) {}
-    drawOverlay(fRes, hRes);
-    evaluate(fRes, hRes);
   }
 
-  function drawOverlay(fRes, hRes) {
+  function drawOverlay(res) {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
-    const vw = video.videoWidth, vh = video.videoHeight;
-    if (!vw) return;
-    const X = (x) => (1 - x) * overlay.width;
-    const Y = (y) => y * overlay.height;
+    if (!res) return;
+    const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+    const a = analyzeFace(res.detection, res.landmarks);
+    const X = (x) => (1 - x / vw) * overlay.width;
+    const Y = (y) => (y / vh) * overlay.height;
 
-    if (fRes && fRes.faceLandmarks && fRes.faceLandmarks[0]) {
-      const lm = fRes.faceLandmarks[0];
-      const a = analyzeFace(lm);
-      // 人脸框
-      ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 3;
-      ctx.strokeRect(X(a.box.x + a.box.w), Y(a.box.y), a.box.w * overlay.width, a.box.h * overlay.height);
-      // 眼睛 + 虹膜
-      const es = a.eyes;
-      ctx.fillStyle = "#38bdf8";
-      for (const p of [es.eyeLO, es.eyeLI, es.eyeRO, es.eyeRI]) {
-        ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 3, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = "#fbbf24"; // 虹膜金色
-      for (const p of [es.irisL, es.irisR]) {
-        ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 3.5, 0, Math.PI * 2); ctx.fill();
-      }
-      // 视线方向指示
-      const gcx = X(es.irisL.x) - (a.gazeX * 40);
-      const gcy = Y(es.irisL.y) - (a.gazeY * 40);
-      ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2;
+    // 人脸框
+    ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 3;
+    ctx.strokeRect(X(a.box.x + a.box.width), Y(a.box.y), (a.box.width / vw) * overlay.width, (a.box.height / vh) * overlay.height);
+
+    // 眼睛 + 瞳孔 + 视线
+    ctx.fillStyle = "#38bdf8";
+    for (const p of [a.eyeLC, a.eyeRC]) { ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "#fbbf24";
+    for (const p of [a.pupilL, a.pupilR]) { ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 3.5, 0, Math.PI * 2); ctx.fill(); }
+    // 视线延长线
+    ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2;
+    for (const [p, c] of [[a.pupilL, a.eyeLC], [a.pupilR, a.eyeRC]]) {
+      const dx = (p.x - c.x) * 6, dy = (p.y - c.y) * 6;
       ctx.beginPath();
-      ctx.moveTo(X(es.irisL.x), Y(es.irisL.y));
-      ctx.lineTo(gcx, gcy);
+      ctx.moveTo(X(p.x), Y(p.y));
+      ctx.lineTo(X(p.x + dx), Y(p.y + dy));
       ctx.stroke();
     }
-
-    if (hRes && hRes.landmarks && hRes.landmarks.length) {
-      // 手部骨架
-      const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-      ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2.5;
-      for (const hand of hRes.landmarks) {
-        for (const [i, j] of CONN) {
-          ctx.beginPath();
-          ctx.moveTo(X(hand[i].x), Y(hand[i].y));
-          ctx.lineTo(X(hand[j].x), Y(hand[j].y));
-          ctx.stroke();
-        }
-      }
-    }
+    // 头部姿态角度标签
+    ctx.fillStyle = "#22c55e";
+    ctx.font = "13px sans-serif";
+    ctx.fillText(`yaw ${(a.yaw * 100).toFixed(0)}  pitch ${(a.pitch * 100).toFixed(0)}  gaze ${(a.gazeY * 100).toFixed(0)}`, 10, 20);
   }
 
-  // ---------- 专注状态评估 ----------
+  // ---------- 专注状态评估（v3 增强） ----------
   function evaluating() {
     return session && session.running && (mode !== "pomodoro" || (pomo && pomo.phase === "focus"));
   }
 
-  function evaluate(fRes, hRes) {
+  function evaluate(res) {
     if (!evaluating()) {
       if (pomo && pomo.phase !== "focus") faceStatus.textContent = "☕ 休息中，放松一下";
       distState = null;
@@ -249,52 +215,40 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
     const now = Date.now();
     const vw = video.videoWidth || 1;
     let reason = null;
-    let handNear = false;
 
-    // 手部：手在脸附近？
-    let handBox = null;
-    if (hRes && hRes.landmarks && hRes.landmarks.length) {
-      let minX = 1, minY = 1, maxX = 0, maxY = 0;
-      for (const h of hRes.landmarks) for (const p of h) {
-        if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
-      }
-      handBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-    }
-
-    if (!fRes || !fRes.faceLandmarks || !fRes.faceLandmarks[0]) {
+    if (!res || !res.detection) {
       reason = "找不到你的脸（离开摄像头了？）";
     } else {
-      const a = analyzeFace(fRes.faceLandmarks[0]);
+      const a = analyzeFace(res.detection, res.landmarks);
+      const bw = a.box.width / vw;
 
-      if (a.box.w < s.minW) reason = "脸离得太远（低头玩手机？）";
-      else if (Math.abs(a.yaw) > s.yaw) reason = a.yaw > 0 ? "头偏了，没看屏幕" : "头偏了，没看屏幕";
-      else if (a.cy > 0.45 + s.centerY) reason = "低头了（脸太靠下）";
-      else if (a.gazeY > s.gazeY) reason = "视线朝下——在看手机？📵";
-      else if (Math.abs(a.gazeX) > s.gazeX) reason = "眼神飘了，看别处";
-      else if (a.ear < s.ear) {
-        if (!eyesClosedSince) eyesClosedSince = now;
-        if (now - eyesClosedSince > 1500) reason = "闭眼太久，困了？";
-      } else eyesClosedSince = 0;
-
-      // 手在脸附近判定（脸区域外扩 s.hand 倍）
-      if (!reason && handBox) {
-        const fx = a.box.x, fy = a.box.y, fw = a.box.w, fh = a.box.h;
-        const inflate = s.hand;
-        const region = {
-          x: fx - fw * (inflate - 1) / 2,
-          y: fy - fh * (inflate - 1) / 2,
-          w: fw * inflate,
-          h: fh * inflate * 1.4,
-        };
-        const hc = { x: handBox.x + handBox.w / 2, y: handBox.y + handBox.h / 2 };
-        if (hc.x > region.x && hc.x < region.x + region.w && hc.y > region.y && hc.y < region.y + region.h) {
-          handNear = true;
-          if (!handSince) handSince = now;
-          if (now - handSince > 1200) reason = "手在脸前——玩手机？📵";
-        } else handSince = 0;
+      // 1. 脸太小 → 太远/凑近玩手机
+      if (bw < s.minW) reason = "脸离得太远（低头玩手机？）";
+      // 2. 检测分过低 → 手/手机挡住了脸
+      else if (a.score < s.score) {
+        if (!handSince) handSince = now;
+        if (now - handSince > 1000) reason = "有东西挡住脸了——玩手机？📵";
+      } else {
+        handSince = 0;
+        // 3. 头部俯仰 → 低头
+        if (a.pitch > s.pitch) reason = "低头了——在看手机？📵";
+        // 4. 头部偏转 → 转头
+        else if (Math.abs(a.yaw) > s.yaw) reason = "头偏了，没看屏幕";
+        // 5. 视线向下 → 眼神在看下面（手机）
+        else if (a.gazeY > s.gazeY) reason = "眼神向下——在看手机？📵";
+        // 6. 视线左右飘
+        else if (Math.abs(a.gazeX) > s.gazeX) reason = "眼神飘了，看别处";
+        // 7. 闭眼
+        else if (a.ear < s.ear) {
+          if (!eyesClosedSince) eyesClosedSince = now;
+          if (now - eyesClosedSince > 1500) reason = "闭眼太久，困了？";
+        } else eyesClosedSince = 0;
       }
-      if (!handNear) handSince = 0;
+      // 8. 脸位置过低（整体姿势）
+      if (!reason) {
+        const cy = (a.box.y + a.box.height / 2) / (video.videoHeight || 1);
+        if (cy > 0.45 + s.centerY) reason = "整个人趴下去了？坐直！";
+      }
     }
 
     if (reason) {
@@ -491,7 +445,7 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
     modePomodoro.disabled = true;
     logList.innerHTML = '<li class="empty">开始记录…</li>';
     log(`📖 ${fmtTime(new Date())} 开始学习（${mode === "pomodoro" ? "番茄钟" : "自由模式"}）`, "focus");
-    detectTimer = setInterval(detect, 300);
+    detectTimer = setInterval(detect, 350);
     rafId = requestAnimationFrame(tick);
   }
 
@@ -555,56 +509,20 @@ import { FilesetResolver, FaceLandmarker, HandLandmarker } from "https://cdn.jsd
     faceStatus.textContent = m === "pomodoro" ? `番茄钟：专注${workInput.value}分 / 休${breakInput.value}分` : "就绪，点「开始学习」";
   }
 
-  // ---------- 初始化（MediaPipe 模型） ----------
-  const MODEL_BASE = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v2.0/models";
-  // 带超时的加载（防止卡死）
-  function withTimeout(promise, ms, label) {
-    return Promise.race([
-      promise,
-      new Promise((_, rej) => setTimeout(() => rej(new Error(label + " 超时")), ms)),
-    ]);
-  }
-  async function loadModels() {
-    connBadge.textContent = "加载 AI 模型…";
-    connBadge.className = "badge warn";
-    const vision = await withTimeout(
-      FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      ),
-      60000, "wasm"
-    );
-    // CPU 委托：兼容性最好，手机端速度足够（检测间隔 300ms）
-    connBadge.textContent = "加载人脸模型…";
-    faceL = await withTimeout(
-      FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: `${MODEL_BASE}/face_landmarker.task`, delegate: "CPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      }),
-      120000, "人脸模型"
-    );
-    connBadge.textContent = "加载手部模型…";
-    handL = await withTimeout(
-      HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: `${MODEL_BASE}/hand_landmarker.task`, delegate: "CPU" },
-        runningMode: "VIDEO",
-        numHands: 2,
-      }),
-      120000, "手部模型"
-    );
-    modelsLoaded = true;
-    connBadge.textContent = "AI 就绪";
-    connBadge.className = "badge ok";
-  }
-
+  // ---------- 初始化 ----------
   async function init() {
+    connBadge.textContent = "加载模型…";
     try {
-      await loadModels();
-      faceStatus.textContent = "AI 模型就绪，请允许摄像头权限";
+      await faceapi.nets.tinyFaceDetector.loadFromUri("models");
+      await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+      modelsLoaded = true;
+      connBadge.textContent = "模型就绪";
+      connBadge.className = "badge ok";
+      faceStatus.textContent = "请允许摄像头权限";
     } catch (e) {
       connBadge.textContent = "模型加载失败";
       connBadge.className = "badge err";
-      faceStatus.textContent = "AI 模型加载失败，检查网络后刷新";
+      faceStatus.textContent = "模型加载失败，检查网络后刷新";
       return;
     }
     try {

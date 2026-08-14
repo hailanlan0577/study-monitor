@@ -1,6 +1,6 @@
 // ============================================================
 // 专注监督 · Study Monitor
-// 摄像头人脸检测 + 姿态判断，开小差自动提醒
+// 摄像头人脸检测 + 姿态判断 + 番茄钟 + 每日统计
 // 所有画面只在本地浏览器处理，不上传任何数据
 // ============================================================
 
@@ -13,12 +13,14 @@
   const overlay = $("overlay");
   const ctx = overlay.getContext("2d");
   const connBadge = $("connBadge");
+  const phaseTag = $("phaseTag");
   const faceStatus = $("faceStatus");
   const alertOverlay = $("alertOverlay");
   const alertText = $("alertText");
   const alertBtn = $("alertBtn");
   const stateDot = $("stateDot");
   const stateText = $("stateText");
+  const cycleText = $("cycleText");
   const timerEl = $("timer");
   const focusPct = $("focusPct");
   const distCount = $("distCount");
@@ -26,33 +28,51 @@
   const logList = $("logList");
   const startBtn = $("startBtn");
   const stopBtn = $("stopBtn");
+  const modeFree = $("modeFree");
+  const modePomodoro = $("modePomodoro");
   const graceInput = $("grace");
   const graceVal = $("graceVal");
   const sensSelect = $("sens");
+  const workInput = $("workMin");
+  const workVal = $("workVal");
+  const breakInput = $("breakMin");
+  const breakVal = $("breakVal");
+  const cyclesInput = $("cyclesLong");
+  const cyclesVal = $("cycleVal");
   const optSound = $("optSound");
   const optVibrate = $("optVibrate");
   const optVoice = $("optVoice");
+  const todayFocus = $("todayFocus");
+  const todayDist = $("todayDist");
+  const totalDays = $("totalDays");
+  const barsEl = $("bars");
 
-  // ---------- 状态 ----------
+  // ---------- 灵敏度阈值 ----------
   const SENS = {
     loose:  { centerX: 0.35, centerY: 0.38, minW: 0.12, ear: 0.12 },
     normal: { centerX: 0.28, centerY: 0.32, minW: 0.16, ear: 0.15 },
     strict: { centerX: 0.20, centerY: 0.26, minW: 0.20, ear: 0.18 },
   };
+  const LONG_BREAK_MIN = 15;
 
-  let session = null;          // 学习会话 {startedAt, focusMs, distMs, distEvents, lastTick, running}
-  let distState = null;        // 开小差检测 {reason, since, alerted, closedSince}
+  // ---------- 状态 ----------
+  let mode = "free";            // free | pomodoro
+  let session = null;           // {running, startedAt, focusMs, distMs, distEvents, lastTick, mode}
+  let pomo = null;              // {phase, phaseEndAt, cycle, focusAtPhaseStart}
+  let distState = null;         // 开小差检测状态
   let modelsLoaded = false;
   let stream = null;
   let rafId = null;
   let detectTimer = null;
 
-  // ---------- 音频提醒（WebAudio 蜂鸣） ----------
+  // ---------- 音频/提醒 ----------
   let audioCtx = null;
-  function beep() {
+  function beep(high) {
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      const seq = [[880, .18], [0, .12], [880, .18], [0, .12], [1180, .4]];
+      const seq = high
+        ? [[988,.18],[0,.12],[988,.18],[0,.12],[1319,.45]]
+        : [[880,.18],[0,.12],[880,.18],[0,.12],[1180,.4]];
       seq.forEach(([f, d], i) => {
         const o = audioCtx.createOscillator();
         const g = audioCtx.createGain();
@@ -74,7 +94,7 @@
     } catch (e) {}
   }
   function alertUser(msg) {
-    if (optSound.checked) beep();
+    if (optSound.checked) beep(false);
     if (optVibrate.checked && navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 500]);
     if (optVoice.checked) speak("喂，别开小差，快回来学习");
     alertText.textContent = msg;
@@ -83,12 +103,10 @@
 
   // ---------- 几何工具 ----------
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-  // 眼睑开合度 EAR：越小=眼睛闭得越厉害
   function eyeAspectRatio(pts) {
-    // 左眼 36-41, 右眼 42-47（face-api 68 点）
     const L = [
-      [dist(pts[37], pts[41]) + dist(pts[38], pts[40])] / (2 * dist(pts[36], pts[39])),
-      [dist(pts[43], pts[47]) + dist(pts[44], pts[46])] / (2 * dist(pts[42], pts[45])),
+      (dist(pts[37], pts[41]) + dist(pts[38], pts[40])) / (2 * dist(pts[36], pts[39])),
+      (dist(pts[43], pts[47]) + dist(pts[44], pts[46])) / (2 * dist(pts[42], pts[45])),
     ];
     return (L[0] + L[1]) / 2;
   }
@@ -100,27 +118,22 @@
       const res = await faceapi
         .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
         .withFaceLandmarks();
-
       drawOverlay(res);
       evaluate(res);
-    } catch (e) {
-      // 模型未就绪等，忽略
-    }
+    } catch (e) {}
   }
 
   function drawOverlay(res) {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     if (!res) return;
     const vw = video.videoWidth, vh = video.videoHeight;
-    const bw = res.detection.box.width / vw, bh = res.detection.box.height / vh;
-    const bx = res.detection.box.x / vw, by = res.detection.box.y / vh;
-    const cx = bx + bw / 2, cy = by + bh / 2;
-    // 画框（镜像显示）
+    const box = res.detection.box;
+    const bw = box.width / vw, bh = box.height / vh;
+    const bx = box.x / vw, by = box.y / vh;
     const X = (x) => (1 - x) * overlay.width;
     const Y = (y) => y * overlay.height;
     ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 3;
     ctx.strokeRect(X(bx + bw), Y(by), bw * overlay.width, bh * overlay.height);
-    // 画眼睛关键点（landmarks 坐标已是视频像素坐标）
     ctx.fillStyle = "#38bdf8";
     const pts = res.landmarks.positions;
     for (const i of [...Array(6).keys()].map(k => k + 36).concat([...Array(6).keys()].map(k => k + 42))) {
@@ -130,8 +143,20 @@
     }
   }
 
+  // ---------- 是否处于监督状态 ----------
+  function supervising() {
+    return session && session.running && (mode !== "pomodoro" || pomo.phase === "focus");
+  }
+
   // ---------- 专注状态评估 ----------
   function evaluate(res) {
+    if (!supervising()) {
+      if (pomo && pomo.phase !== "focus") {
+        faceStatus.textContent = "☕ 休息中，放松一下";
+      }
+      distState = null;
+      return;
+    }
     const s = SENS[sensSelect.value];
     const vw = video.videoWidth, vh = video.videoHeight;
     let reason = null;
@@ -149,9 +174,8 @@
       else if (Math.abs(cx - 0.5) > s.centerX) reason = "头偏了，没看屏幕";
       else if (Math.abs(cy - 0.45) > s.centerY) reason = cy < 0.45 - s.centerY ? "低头了" : "抬头了，别走神";
       else if (ear < s.ear) {
-        // 闭眼：累计超过 1.2 秒才算（过滤眨眼）
         distState = distState || {};
-        distState.closedSince = (distState.closedSince || Date.now());
+        distState.closedSince = distState.closedSince || Date.now();
         if (Date.now() - distState.closedSince > 1200) reason = "闭眼太久，困了？";
       } else if (distState) distState.closedSince = null;
     }
@@ -171,7 +195,6 @@
     if (!distState || distState.reason !== reason) {
       distState = { reason, since: now, alerted: false, closedSince: null };
     }
-    // 宽限结束后才提醒
     const grace = parseInt(graceInput.value, 10) * 1000;
     if (!distState.alerted && now - distState.since > grace) {
       distState.alerted = true;
@@ -185,7 +208,6 @@
     if (!session || !session.running) return;
     const now = Date.now();
     if (distState && distState.alerted) {
-      // 一段开小差结束，记录
       const dur = Math.round((now - distState.since) / 1000);
       session.distEvents.push({ t: new Date(distState.since), dur, reason: distState.reason });
       session.distMs += dur * 1000;
@@ -195,28 +217,138 @@
     }
     distState = null;
     stateDot.className = "state-dot focus";
-    stateText.textContent = "专注中";
+    stateText.textContent = pomo && pomo.phase === "focus" ? "专注中" : "学习中";
+  }
+
+  // ---------- 每日统计 (localStorage) ----------
+  const STORE_KEY = "sm_daily";
+  function loadDaily() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveDaily(d) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (e) {}
+  }
+  function dateKey(d) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  }
+  function addStats(fSec, dSec, c) {
+    const d = loadDaily();
+    const k = dateKey(new Date());
+    const cur = d[k] || { f: 0, d: 0, c: 0 };
+    cur.f += Math.round(fSec); cur.d += Math.round(dSec); cur.c += c;
+    d[k] = cur;
+    saveDaily(d);
+  }
+  function renderStats() {
+    const d = loadDaily();
+    const today = d[dateKey(new Date())] || { f: 0, d: 0, c: 0 };
+    todayFocus.textContent = Math.round(today.f / 60) + "分";
+    todayDist.textContent = today.c + "次";
+    totalDays.textContent = Object.keys(d).length + "天";
+
+    // 近 7 天柱状图
+    const days = ["日", "一", "二", "三", "四", "五", "六"];
+    const now = new Date();
+    let maxF = 1;
+    const arr = [];
+    for (let i = 6; i >= 0; i--) {
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const rec = d[dateKey(dt)] || { f: 0 };
+      arr.push({ dt, f: rec.f / 60, isToday: i === 0 });
+      maxF = Math.max(maxF, rec.f / 60);
+    }
+    barsEl.innerHTML = "";
+    arr.forEach(({ dt, f, isToday }) => {
+      const col = document.createElement("div");
+      col.className = "bar-col";
+      const h = Math.max(3, Math.round((f / maxF) * 100));
+      col.innerHTML =
+        `<span class="bar-val">${f >= 1 ? Math.round(f) : ""}</span>` +
+        `<div class="bar${isToday ? " today" : ""}" style="height:${h}%"></div>` +
+        `<span class="bar-day">${isToday ? "今" : days[dt.getDay()]}</span>`;
+      barsEl.appendChild(col);
+    });
+  }
+
+  // ---------- 番茄钟阶段 ----------
+  function phaseMinutes(phase) {
+    return phase === "focus" ? parseInt(workInput.value, 10)
+      : phase === "long" ? LONG_BREAK_MIN
+      : parseInt(breakInput.value, 10);
+  }
+
+  function enterPhase(phase) {
+    pomo.phase = phase;
+    pomo.phaseEndAt = Date.now() + phaseMinutes(phase) * 60000;
+    if (phase === "focus") pomo.focusAtPhaseStart = session.focusMs;
+    phaseTag.textContent = phase === "focus" ? "🔴 专注中" : phase === "long" ? "☕ 长休息" : "🟠 休息中";
+    phaseTag.className = "phase-tag" + (phase === "break" ? " break" : phase === "long" ? " long" : "");
+    stateText.textContent = phase === "focus" ? "专注中" : "休息中";
+    stateDot.className = "state-dot" + (phase === "focus" ? " focus" : "");
+    cycleText.textContent = phase === "focus" && pomo.cycle > 0 ? `第 ${pomo.cycle + 1} 轮` : "";
+  }
+
+  function finishFocusPhase() {
+    // 结算本阶段数据
+    const fDelta = session.focusMs - pomo.focusAtPhaseStart;
+    addStats(fDelta, 0, 0);
+    pomo.cycle++;
+    const long = pomo.cycle % parseInt(cyclesInput.value, 10) === 0;
+    const next = long ? "long" : "break";
+    log(`🍅 专注 ${Math.round(fDelta / 60000 * 10) / 10} 分钟完成`, "focus");
+    if (optSound.checked) beep(true);
+    if (optVibrate.checked && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    if (optVoice.checked) speak(long ? "太棒了，休息十五分钟" : `休息${breakInput.value}分钟`);
+    enterPhase(next);
+    renderStats();
+  }
+
+  function finishBreakPhase() {
+    if (optSound.checked) beep(true);
+    if (optVoice.checked) speak("休息结束，继续加油");
+    enterPhase("focus");
   }
 
   // ---------- 计时器 ----------
   function tick() {
     if (!session || !session.running) return;
     const now = Date.now();
-    session.focusMs += now - session.lastTick;
+
+    if (mode === "pomodoro") {
+      if (pomo.phase === "focus") session.focusMs += now - session.lastTick;
+      if (now >= pomo.phaseEndAt) {
+        if (pomo.phase === "focus") finishFocusPhase();
+        else finishBreakPhase();
+        session.lastTick = Date.now();
+      }
+    } else {
+      session.focusMs += now - session.lastTick;
+    }
     session.lastTick = now;
 
+    // 计时显示
+    if (mode === "pomodoro") {
+      const left = Math.max(0, pomo.phaseEndAt - now);
+      timerEl.textContent = fmtDur(left);
+    } else {
+      timerEl.textContent = fmtDur(session.focusMs + session.distMs);
+    }
+
     const total = session.focusMs + session.distMs;
-    const pct = total > 0 ? Math.round((session.focusMs / total) * 100) : 100;
-    focusPct.textContent = pct + "%";
+    focusPct.textContent = (total > 0 ? Math.round((session.focusMs / total) * 100) : 100) + "%";
     distCount.textContent = session.distEvents.length;
     distTime.textContent = Math.round(session.distMs / 1000) + "s";
-    timerEl.textContent = fmtDur(session.focusMs + session.distMs);
+
     rafId = requestAnimationFrame(tick);
   }
 
   function fmtDur(ms) {
-    const s = Math.floor(ms / 1000);
-    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h > 0
+      ? String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0")
+      : String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
   }
   function fmtTime(d) {
     return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
@@ -234,17 +366,32 @@
   function startSession() {
     if (!modelsLoaded) { faceStatus.textContent = "模型还没加载完，稍等…"; return; }
     if (!stream) { faceStatus.textContent = "摄像头未就绪"; return; }
+
     session = {
       startedAt: Date.now(), focusMs: 0, distMs: 0,
       distEvents: [], lastTick: Date.now(), running: true,
     };
     distState = null;
+
+    if (mode === "pomodoro") {
+      pomo = { phase: "focus", phaseEndAt: Date.now() + phaseMinutes("focus") * 60000, cycle: 0, focusAtPhaseStart: 0 };
+      phaseTag.classList.remove("hidden");
+      enterPhase("focus");
+    } else {
+      pomo = null;
+      phaseTag.classList.add("hidden");
+      stateText.textContent = "学习中";
+      stateDot.className = "state-dot focus";
+      cycleText.textContent = "";
+    }
+
     startBtn.disabled = true;
     stopBtn.disabled = false;
-    stateDot.className = "state-dot focus";
-    stateText.textContent = "专注中";
+    modeFree.disabled = true;
+    modePomodoro.disabled = true;
     logList.innerHTML = '<li class="empty">开始记录…</li>';
-    log(`📖 ${fmtTime(new Date())} 开始学习`, "focus");
+    log(`📖 ${fmtTime(new Date())} 开始学习（${mode === "pomodoro" ? "番茄钟" : "自由模式"}）`, "focus");
+
     detectTimer = setInterval(detect, 400);
     rafId = requestAnimationFrame(tick);
   }
@@ -255,16 +402,39 @@
     clearInterval(detectTimer);
     cancelAnimationFrame(rafId);
     ctx.clearRect(0, 0, overlay.width, overlay.height);
+    alertOverlay.classList.add("hidden");
+
+    // 结算统计
+    const fDelta = mode === "pomodoro" ? session.focusMs - pomo.focusAtPhaseStart : session.focusMs;
+    addStats(fDelta, session.distMs, session.distEvents.length);
+
     const total = session.focusMs + session.distMs;
-    log(`🏁 ${fmtTime(new Date())} 结束学习，共 ${fmtDur(total)}，专注 ${Math.round(session.focusMs / (total || 1) * 100)}%`, "focus");
+    const pct = total > 0 ? Math.round((session.focusMs / total) * 100) : 100;
+    log(`🏁 ${fmtTime(new Date())} 结束，共 ${fmtDur(total)}，专注 ${pct}%`, "focus");
+
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    modeFree.disabled = false;
+    modePomodoro.disabled = false;
     stateDot.className = "state-dot";
     stateText.textContent = "已结束";
+    cycleText.textContent = "";
+    timerEl.textContent = "00:00";
     faceStatus.textContent = "已结束，休息一下吧";
-    alertOverlay.classList.add("hidden");
-    session = null;
-    distState = null;
+    phaseTag.classList.add("hidden");
+
+    session = null; distState = null; pomo = null;
+    renderStats();
+  }
+
+  // ---------- 模式切换 ----------
+  function setMode(m) {
+    if (session && session.running) return;
+    mode = m;
+    modeFree.classList.toggle("active", m === "free");
+    modePomodoro.classList.toggle("active", m === "pomodoro");
+    timerEl.textContent = "00:00";
+    faceStatus.textContent = m === "pomodoro" ? `番茄钟：专注${workInput.value}分 / 休${breakInput.value}分` : "就绪，点「开始学习」";
   }
 
   // ---------- 初始化 ----------
@@ -305,12 +475,17 @@
   // ---------- 事件 ----------
   startBtn.onclick = startSession;
   stopBtn.onclick = stopSession;
+  modeFree.onclick = () => setMode("free");
+  modePomodoro.onclick = () => setMode("pomodoro");
   alertBtn.onclick = () => {
     alertOverlay.classList.add("hidden");
-    // 立即结束当前开小差判定
     if (session && session.running) { markFocused(); distState = null; }
   };
   graceInput.oninput = () => (graceVal.textContent = graceInput.value);
+  workInput.oninput = () => (workVal.textContent = workInput.value);
+  breakInput.oninput = () => (breakVal.textContent = breakInput.value);
+  cyclesInput.oninput = () => (cyclesVal.textContent = cyclesInput.value);
 
+  renderStats();
   init();
 })();

@@ -2,81 +2,60 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>专注监督 · Study Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>专注监督 Study Monitor - AI 监督你的学习</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <header class="topbar">
-    <h1>📚 专注监督</h1>
-    <span id="connBadge" class="badge">初始化中</span>
-  </header>
+<body class="landing-body">
+  <main class="landing">
+    <!-- Hero -->
+    <section class="hero-card">
+      <div class="logo-big">📚</div>
+      <h1>专注监督</h1>
+      <p class="sub">AI 摄像头监督你的学习，开小差自动提醒</p>
+      <a href="app.html" class="cta">🚀 开始使用</a>
+      <p class="hint">免费 · 无需注册 · 手机/平板/电脑都能用</p>
+    </section>
 
-  <main>
-    <!-- 摄像头画面 -->
-    <section class="stage">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="overlay"></canvas>
-      <div id="faceStatus" class="face-status">正在启动摄像头…</div>
-      <div id="alertOverlay" class="alert-overlay hidden">
-        <div class="alert-box">
-          <div class="alert-icon">⚠️</div>
-          <div id="alertText">开小差了！</div>
-          <button id="alertBtn">我回来啦</button>
-        </div>
+    <!-- 功能特性 -->
+    <section class="features">
+      <div class="feature">
+        <div class="fi">🤖</div>
+        <h3>AI 人脸识别</h3>
+        <p>低头玩手机、转头走神、闭眼犯困，统统逃不过 AI 的眼睛</p>
+      </div>
+      <div class="feature">
+        <div class="fi">⏰</div>
+        <h3>番茄钟模式</h3>
+        <p>25 分钟专注 + 5 分钟休息自动循环，科学规划学习节奏</p>
+      </div>
+      <div class="feature">
+        <div class="fi">📊</div>
+        <h3>每日统计</h3>
+        <p>专注时长、开小差次数、近 7 天趋势，进步看得见</p>
+      </div>
+      <div class="feature">
+        <div class="fi">🔒</div>
+        <h3>隐私安全</h3>
+        <p>摄像头画面只在你的设备本地处理，绝不上传任何数据</p>
       </div>
     </section>
 
-    <!-- 状态与计时 -->
-    <section class="panel">
-      <div class="state-row">
-        <div id="stateDot" class="state-dot"></div>
-        <span id="stateText">未开始</span>
-      </div>
-      <div class="timer" id="timer">00:00</div>
-      <div class="stats-row">
-        <div class="stat"><span id="focusPct">0%</span><label>专注率</label></div>
-        <div class="stat"><span id="distCount">0</span><label>开小差</label></div>
-        <div class="stat"><span id="distTime">0s</span><label>浪费</label></div>
-      </div>
-      <div class="btn-row">
-        <button id="startBtn" class="btn primary">开始学习</button>
-        <button id="stopBtn" class="btn" disabled>结束</button>
-      </div>
+    <!-- 使用步骤 -->
+    <section class="steps">
+      <h2>三步开始</h2>
+      <ol>
+        <li><b>打开本页</b>，点击「开始使用」进入监督页面</li>
+        <li><b>允许摄像头权限</b>（第一次使用会弹出授权）</li>
+        <li><b>摆好设备，坐下学习</b>，开小差会被自动提醒</li>
+      </ol>
+      <p class="tip">💡 建议用系统浏览器（Chrome/Safari/Edge）打开，微信内置浏览器可能无法调用摄像头</p>
     </section>
 
-    <!-- 设置 -->
-    <section class="panel">
-      <h2>⚙️ 设置</h2>
-      <div class="setting">
-        <label>灵敏度</label>
-        <select id="sens">
-          <option value="loose">宽松（少打扰）</option>
-          <option value="normal" selected>标准</option>
-          <option value="strict">严格（严盯）</option>
-        </select>
-      </div>
-      <div class="setting">
-        <label>提醒宽限 <span id="graceVal">3</span> 秒</label>
-        <input type="range" id="grace" min="1" max="10" value="3" />
-      </div>
-      <div class="setting inline">
-        <label><input type="checkbox" id="optSound" checked /> 声音提醒</label>
-        <label><input type="checkbox" id="optVibrate" checked /> 震动提醒</label>
-        <label><input type="checkbox" id="optVoice" checked /> 语音提醒</label>
-      </div>
-    </section>
-
-    <!-- 记录 -->
-    <section class="panel">
-      <h2>📋 本次记录</h2>
-      <ul id="logList" class="log-list"><li class="empty">暂无记录，开始学习吧</li></ul>
-    </section>
+    <footer class="landing-foot">
+      <p>🔒 隐私承诺：所有画面处理都在你自己的设备浏览器内完成，不经过任何服务器</p>
+      <p class="small">Study Monitor · 用 ❤️ 制作</p>
+    </footer>
   </main>
-
-  <footer class="foot">摄像头画面仅在本机处理，不会上传</footer>
-
-  <script src="js/face-api.min.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>

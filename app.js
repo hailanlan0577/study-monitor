@@ -46,6 +46,10 @@
   const todayDist = $("todayDist");
   const totalDays = $("totalDays");
   const barsEl = $("bars");
+  const landing = $("landing");
+  const appSection = $("appSection");
+  const enterBtn = $("enterBtn");
+  const backBtn = $("backBtn");
 
   // ---------- 灵敏度阈值 ----------
   const SENS = {
@@ -283,7 +287,10 @@
     pomo.phaseEndAt = Date.now() + phaseMinutes(phase) * 60000;
     if (phase === "focus") pomo.focusAtPhaseStart = session.focusMs;
     phaseTag.textContent = phase === "focus" ? "🔴 专注中" : phase === "long" ? "☕ 长休息" : "🟠 休息中";
-    phaseTag.className = "phase-tag" + (phase === "break" ? " break" : phase === "long" ? " long" : "");
+    phaseTag.className = "phase-tag pop" + (phase === "break" ? " break" : phase === "long" ? " long" : "");
+    timerEl.classList.remove("pulse");
+    void timerEl.offsetWidth; // 重启动画
+    timerEl.classList.add("pulse");
     stateText.textContent = phase === "focus" ? "专注中" : "休息中";
     stateDot.className = "state-dot" + (phase === "focus" ? " focus" : "");
     cycleText.textContent = phase === "focus" && pomo.cycle > 0 ? `第 ${pomo.cycle + 1} 轮` : "";
@@ -428,6 +435,7 @@
   }
 
   // ---------- 模式切换 ----------
+  // ---------- 模式切换 ----------
   function setMode(m) {
     if (session && session.running) return;
     mode = m;
@@ -438,7 +446,7 @@
   }
 
   // ---------- 初始化 ----------
-  const MODELS_URL = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.2/models";
+  const MODELS_URL = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models";
   async function loadModels() {
     try {
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL);
@@ -486,6 +494,8 @@
   // ---------- 事件 ----------
   startBtn.onclick = startSession;
   stopBtn.onclick = stopSession;
+  enterBtn.onclick = enterApp;
+  backBtn.onclick = backHome;
   modeFree.onclick = () => setMode("free");
   modePomodoro.onclick = () => setMode("pomodoro");
   alertBtn.onclick = () => {
@@ -498,5 +508,11 @@
   cyclesInput.oninput = () => (cyclesVal.textContent = cyclesInput.value);
 
   renderStats();
+
+  // 注册 Service Worker（PWA 离线能力）
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
   init();
 })();

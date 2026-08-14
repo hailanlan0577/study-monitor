@@ -438,11 +438,22 @@
   }
 
   // ---------- 初始化 ----------
+  const MODELS_URL = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.2/models";
+  async function loadModels() {
+    try {
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL);
+    } catch (e) {
+      // CDN 不可用时回退到本地相对路径
+      await faceapi.nets.tinyFaceDetector.loadFromUri("models");
+      await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+    }
+  }
+
   async function init() {
     connBadge.textContent = "加载模型…";
     try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri("models");
-      await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+      await loadModels();
       modelsLoaded = true;
       connBadge.textContent = "模型就绪";
       connBadge.className = "badge ok";

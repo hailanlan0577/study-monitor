@@ -8,13 +8,13 @@ const CORE = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/style.css",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/app.js",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/js/face-api.min.js",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/models/tiny_face_detector_model-weights_manifest.json",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/models/tiny_face_detector_model-shard1",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/models/face_landmark_68_model-weights_manifest.json",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.0/models/face_landmark_68_model-shard1",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/style.css",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/app.js",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/js/face-api.min.js",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/models/tiny_face_detector_model-weights_manifest.json",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/models/tiny_face_detector_model-shard1",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/models/face_landmark_68_model-weights_manifest.json",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v3.1/models/face_landmark_68_model-shard1",
 ];
 
 self.addEventListener("install", (e) => {

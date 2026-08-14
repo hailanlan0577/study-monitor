@@ -1,5 +1,5 @@
 // 专注监督 Service Worker：离线缓存，秒开体验
-const VERSION = "sm-v1.3";
+const VERSION = "sm-v1.4";
 const CORE = [
   "./",
   "./index.html",
@@ -8,13 +8,13 @@ const CORE = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/style.css",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/app.js",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/js/face-api.min.js",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models/tiny_face_detector_model-weights_manifest.json",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models/tiny_face_detector_model-shard1",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models/face_landmark_68_model-weights_manifest.json",
-  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models/face_landmark_68_model-shard1",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/style.css",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/app.js",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/js/face-api.min.js",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/models/tiny_face_detector_model-weights_manifest.json",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/models/tiny_face_detector_model-shard1",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/models/face_landmark_68_model-weights_manifest.json",
+  "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/models/face_landmark_68_model-shard1",
 ];
 
 self.addEventListener("install", (e) => {

@@ -469,7 +469,7 @@
   }
 
   // ---------- 初始化 ----------
-  const MODELS_URL = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/models";
+  const MODELS_URL = "https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.4/models";
   async function loadModels() {
     try {
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL);

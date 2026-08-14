@@ -434,7 +434,30 @@
     renderStats();
   }
 
-  // ---------- 模式切换 ----------
+  // ---------- 落地页与应用页过渡 ----------
+  function enterApp() {
+    landing.classList.add("landing-leave");
+    setTimeout(() => {
+      landing.style.display = "none";
+      appSection.classList.remove("app-hidden");
+      appSection.classList.add("app-show");
+      window.scrollTo(0, 0);
+      setTimeout(() => { overlay.width = video.clientWidth; overlay.height = video.clientHeight; }, 600);
+    }, 450);
+  }
+  function backHome() {
+    if (session && session.running) stopSession();
+    appSection.classList.remove("app-show");
+    appSection.classList.add("app-hidden");
+    landing.style.display = "";
+    landing.classList.remove("landing-leave");
+    landing.querySelectorAll(".anim-up").forEach((el) => {
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+    });
+  }
+
   // ---------- 模式切换 ----------
   function setMode(m) {
     if (session && session.running) return;

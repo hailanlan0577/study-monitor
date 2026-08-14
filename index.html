@@ -4,40 +4,49 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>专注监督 Study Monitor - AI 监督你的学习</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.2/style.css" />
+  <meta name="description" content="AI 摄像头监督你的学习，开小差自动提醒，支持番茄钟与每日统计。免费、无需注册、数据不上传。" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/style.css" />
 </head>
 <body>
   <!-- ============ 主页（落地页） ============ -->
-  <main class="landing">
+  <main id="landing" class="landing">
     <section class="hero-card">
-      <div class="logo-big">📚</div>
-      <h1>专注监督</h1>
-      <p class="sub">AI 摄像头监督你的学习，开小差自动提醒</p>
-      <a href="#appSection" class="cta">🚀 开始使用</a>
-      <p class="hint">免费 · 无需注册 · 手机/平板/电脑都能用</p>
+      <div class="logo-big anim-up">📚</div>
+      <h1 class="anim-up d1">专注监督</h1>
+      <p class="sub anim-up d2">AI 摄像头监督你的学习，开小差自动提醒</p>
+      <button id="enterBtn" class="cta anim-up d3">🚀 开始使用</button>
+      <p class="hint anim-up d4">免费 · 无需注册 · 手机/平板/电脑都能用</p>
     </section>
 
     <section class="features">
-      <div class="feature"><div class="fi">🤖</div><h3>AI 人脸识别</h3><p>低头玩手机、转头走神、闭眼犯困，统统逃不过 AI 的眼睛</p></div>
-      <div class="feature"><div class="fi">⏰</div><h3>番茄钟模式</h3><p>25 分钟专注 + 5 分钟休息自动循环，科学规划学习节奏</p></div>
-      <div class="feature"><div class="fi">📊</div><h3>每日统计</h3><p>专注时长、开小差次数、近 7 天趋势，进步看得见</p></div>
-      <div class="feature"><div class="fi">🔒</div><h3>隐私安全</h3><p>摄像头画面只在你的设备本地处理，绝不上传任何数据</p></div>
+      <div class="feature anim-up d2"><div class="fi">🤖</div><h3>AI 人脸识别</h3><p>低头玩手机、转头走神、闭眼犯困，统统逃不过 AI 的眼睛</p></div>
+      <div class="feature anim-up d3"><div class="fi">⏰</div><h3>番茄钟模式</h3><p>25 分钟专注 + 5 分钟休息自动循环，科学规划学习节奏</p></div>
+      <div class="feature anim-up d4"><div class="fi">📊</div><h3>每日统计</h3><p>专注时长、开小差次数、近 7 天趋势，进步看得见</p></div>
+      <div class="feature anim-up d5"><div class="fi">🔒</div><h3>隐私安全</h3><p>摄像头画面只在你的设备本地处理，绝不上传任何数据</p></div>
     </section>
 
-    <section class="steps">
+    <section class="steps anim-up d3">
       <h2>三步开始</h2>
       <ol>
-        <li><b>点击上方「开始使用」</b>，并<strong>允许摄像头权限</strong>（第一次使用会弹出授权）</li>
+        <li><b>点击「开始使用」</b>，并<strong>允许摄像头权限</strong>（第一次使用会弹出授权）</li>
         <li><b>摆好设备，脸对着摄像头</b>，点「开始学习」</li>
         <li><b>开小差会被自动提醒</b>，结束后查看每日统计</li>
       </ol>
-      <p class="tip">💡 建议用系统浏览器（Chrome/Safari/Edge）打开，微信内置浏览器可能无法调用摄像头</p>
+      <p class="tip">💡 建议用系统浏览器（Chrome/Safari/Edge）打开；安卓用户可「添加到主屏幕」变成 App</p>
     </section>
   </main>
 
   <!-- ============ 应用 ============ -->
-  <div id="appSection">
+  <div id="appSection" class="app-hidden">
     <header class="topbar">
+      <button id="backBtn" class="back" title="返回主页">← 主页</button>
       <h1>📚 专注监督</h1>
       <span id="connBadge" class="badge">初始化中</span>
     </header>
@@ -50,7 +59,7 @@
         <div id="phaseTag" class="phase-tag hidden">专注中</div>
         <div id="faceStatus" class="face-status">正在启动摄像头…</div>
         <div id="alertOverlay" class="alert-overlay hidden">
-          <div class="alert-box">
+          <div class="alert-box shake-in">
             <div class="alert-icon">⚠️</div>
             <div id="alertText">开小差了！</div>
             <button id="alertBtn">我回来啦</button>
@@ -143,7 +152,7 @@
     <footer class="foot">摄像头画面仅在本机处理，不会上传 · 数据只存在你的浏览器里</footer>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.2/js/face-api.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.2/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/js/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/hailanlan0577/study-monitor@v1.3/app.js"></script>
 </body>
 </html>
